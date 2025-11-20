@@ -2,7 +2,9 @@
 
 Interactive visualizations of AWS ECS deployment strategies with real-time animations, pause/resume controls, and error simulation.
 
-Open `index.html` in your browser to get started - no installation required!
+**🌐 Live Demo:** https://frankhefeng.github.io/aws-ecs-deployment-strategy-animation
+
+Or download and open `index.html` in your browser - no installation required!
 
 ## 🎮 Usage
 
