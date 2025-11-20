@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECS Canary Deployment Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            background: #f5f5f5;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 1600px;
+            max-width: 95vw;
+            max-height: 98vh;
+            overflow-y: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 10px 0;
+            font-size: 1.8em;
+        }
+        .aws-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .aws-logo {
+            font-size: 1.5em;
+        }
+
+        .deployment-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .ecs-cluster {
+            background: #232F3E;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .ecs-service {
+            background: #FF9900;
+            color: white;
+            padding: 6px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .load-balancer {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 153, 0, 0.3);
+        }
+
+        .target-group-single {
+            background: linear-gradient(135deg, #E3F2FD 0%, #FFF9C4 100%);
+            border: 2px solid #FFC107;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+            color: #F57F17;
+        }
+        .connection-line {
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .connection-line::before {
+            content: "";
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #ddd;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .connection-arrow {
+            font-size: 16px;
+            color: #666;
+        }
+        .connection-lines-container {
+            position: relative;
+            height: 40px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .environment {
+            transition: all 0.5s ease;
+        }
+        .env-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .traffic-distribution {
+            display: flex;
+            height: 50px;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .traffic-old {
+            background: #2196F3;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .traffic-canary {
+            background: #FFC107;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .traffic-new {
+            background: #FF9800;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .tasks-container {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            min-height: 120px;
+        }
+        .task {
+            width: 80px;
+            height: 95px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            transition: all 0.5s ease;
+            position: relative;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        .task::before {
+            content: "📦";
+            font-size: 1.2em;
+        }
+        .task.old {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .task.canary {
+            background: linear-gradient(135deg, #FFC107 0%, #FFA000 100%);
+            color: white;
+            box-shadow: 0 0 15px rgba(255, 193, 7, 0.6);
+        }
+        .task.canary::before {
+            content: "🐤";
+        }
+        .task.new {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            color: white;
+        }
+        .task.starting {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        .task.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .task.removed {
+            opacity: 0;
+            transform: scale(0);
+        }
+        .task-traffic {
+            font-size: 10px;
+            margin-top: 5px;
+            padding: 2px 5px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        .monitoring {
+            background: #FFF3E0;
+            border: 2px solid #FF9800;
+            border-radius: 6px;
+            padding: 8px;
+            margin: 6px 0;
+        }
+        .monitoring-title {
+            font-weight: bold;
+            color: #E65100;
+            margin-bottom: 6px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+        .metric {
+            background: white;
+            padding: 6px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .metric-label {
+            font-size: 9px;
+            color: #666;
+            margin-bottom: 2px;
+        }
+        .metric-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .metric-value.warning {
+            color: #FF9800;
+        }
+        .metric-value.error {
+            color: #f44336;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+            color: #1976d2;
+            min-height: 40px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button.pause {
+            background: #FF9800;
+        }
+        button.pause:hover {
+            background: #F57C00;
+        }
+        button.error {
+            background: #f44336;
+        }
+        button.error:hover {
+            background: #d32f2f;
+        }
+        .task.error {
+            background: #f44336 !important;
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .metric-value.critical {
+            color: #f44336;
+            animation: blink 0.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .monitoring.active {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="https://github.com/frankhefeng/aws-ecs-deployment-strategy-animation" target="_blank" class="github-corner" aria-label="View source on GitHub">
+            <svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true">
+                <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+                <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+                <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+            </svg>
+        </a>
+        <style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+        
+        <div class="aws-header">
+            <span class="aws-logo">☁️</span>
+            <h1>AWS ECS Canary Deployment</h1>
+        </div>
+
+        
+        <div class="deployment-area">
+            <div class="ecs-cluster">🏢 ECS Cluster: production-cluster</div>
+            <div class="ecs-service">🔧 ECS Service: web-service</div>
+            <div class="load-balancer">
+                <div style="font-size: 14px; margin-bottom: 6px; white-space: nowrap;">⚖️ Application Load Balancer</div>
+                <div style="font-size: 12px; padding: 5px 10px; background: rgba(255,255,255,0.3); border-radius: 5px; display: inline-block;">
+                    <span id="listenerInfo">🌐 Listener: TG1 100% | TG2 0%</span>
+                </div>
+            </div>
+            <div class="connection-line">
+                <span class="connection-arrow">↓</span>
+            </div>
+            <div style="display: flex; gap: 20px; justify-content: center; margin: 20px 0;">
+                <div style="flex: 1; background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%); border: 3px solid #2196F3; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; color: #1976D2;">
+                    <div>🎯 Target Group 1</div>
+                    <div style="font-size: 11px; margin-top: 5px; padding: 3px 8px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                        <span id="tg1Weight">Old Tasks: 100%</span>
+                    </div>
+                </div>
+                <div style="flex: 1; background: linear-gradient(135deg, #FFF9C4 0%, #FFF59D 100%); border: 3px solid #FFC107; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; color: #F57F17;">
+                    <div>🎯 Target Group 2</div>
+                    <div style="font-size: 11px; margin-top: 5px; padding: 3px 8px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                        <span id="tg2Weight">Canary/New: 0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="connection-lines-container">
+                <div class="connection-line-vertical" id="tg1Connection" style="width: 4px; height: 100%; background: linear-gradient(180deg, #2196F3 0%, #1976D2 100%);"></div>
+                <div class="connection-line-vertical" id="tg2Connection" style="width: 4px; height: 100%; background: linear-gradient(180deg, #FFC107 0%, #FFA000 100%); opacity: 0.2;"></div>
+            </div>
+            <div class="environments" style="display: flex; gap: 40px; justify-content: center;">
+                <div class="environment" id="productionEnv" style="flex: 1; padding: 20px; border-radius: 10px; background: #E3F2FD; border: 3px solid #2196F3;">
+                    <div class="env-title">🔵 Production Environment</div>
+                    <div class="tasks-container" id="oldTasks">
+                        <!-- Production tasks will be here -->
+                    </div>
+                </div>
+                <div class="environment" id="canaryEnv" style="flex: 1; padding: 20px; border-radius: 10px; background: #FFF9C4; border: 3px solid #FFC107;">
+                    <div class="env-title">🐤 Canary/New Environment</div>
+                    <div class="tasks-container" id="tasksContainer">
+                        <!-- Canary/New tasks will be added here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="monitoring" id="monitoring" style="display: none;">
+                <div class="monitoring-title">📊 Monitoring Canary Metrics</div>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-label">CPU Usage</div>
+                        <div class="metric-value" id="metricCpu">--</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Memory</div>
+                        <div class="metric-value" id="metricMemory">--</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Error Rate</div>
+                        <div class="metric-value" id="metricError">--</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Latency</div>
+                        <div class="metric-value" id="metricLatency">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status" id="status">Click "Start Deployment" to begin</div>
+        <div class="controls">
+            <button id="startBtn" onclick="startDeployment()">Start Deployment</button>
+            <button id="pauseBtn" onclick="togglePause()" disabled>Pause</button>
+            <button id="errorBtn" class="error" onclick="simulateError()" disabled>Simulate Error</button>
+            <button id="resetBtn" onclick="resetDeployment()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let isPaused = false;
+        let shouldError = false;
+        const totalTasks = 3;
+
+        function createTask(id, type, traffic = 0) {
+            const task = document.createElement('div');
+            task.className = `task ${type} starting`;
+            task.id = `task-${type}-${id}`;
+            task.innerHTML = `
+                <div>${type === 'old' ? 'Old' : type === 'canary' ? 'Canary' : 'New'}</div>
+                <div>Task ${id}</div>
+                <div class="task-traffic">${traffic}%</div>
+            `;
+            return task;
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.classList.add('pause');
+                updateStatus('⏸ Deployment paused');
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.classList.remove('pause');
+                updateStatus('▶ Deployment resumed');
+            }
+        }
+
+        async function simulateError() {
+            if (!isRunning) return;
+            
+            shouldError = true;
+            document.getElementById('errorBtn').disabled = true;
+            updateStatus('⚠️ Error will be triggered during canary monitoring...', true);
+        }
+
+        async function waitWhilePaused() {
+            while (isPaused) {
+                await sleep(100);
+            }
+        }
+
+        function updateTaskTraffic(taskId, traffic) {
+            const task = document.getElementById(taskId);
+            if (task) {
+                const trafficEl = task.querySelector('.task-traffic');
+                if (trafficEl) {
+                    trafficEl.textContent = `${traffic}%`;
+                }
+            }
+        }
+
+        function updateTrafficBar(oldPercent, canaryPercent, newPercent) {
+            // Update Listener weight distribution between TGs
+            const listenerInfo = document.getElementById('listenerInfo');
+            const tg1Weight = document.getElementById('tg1Weight');
+            const tg2Weight = document.getElementById('tg2Weight');
+            const tg1Connection = document.getElementById('tg1Connection');
+            const tg2Connection = document.getElementById('tg2Connection');
+            
+            const tg2Total = canaryPercent + newPercent;
+            listenerInfo.textContent = `🌐 Listener: TG1 ${oldPercent}% | TG2 ${tg2Total}%`;
+            tg1Weight.textContent = `Old Tasks: ${oldPercent}%`;
+            
+            if (canaryPercent > 0 && newPercent === 0) {
+                tg2Weight.textContent = `Canary: ${canaryPercent}%`;
+            } else if (newPercent > 0) {
+                tg2Weight.textContent = `New Tasks: ${tg2Total}%`;
+            } else {
+                tg2Weight.textContent = `Canary/New: 0%`;
+            }
+            
+            // Update connection line opacity based on traffic
+            tg1Connection.style.opacity = oldPercent > 0 ? (oldPercent / 100) : 0.2;
+            tg2Connection.style.opacity = tg2Total > 0 ? (tg2Total / 100) : 0.2;
+        }
+
+        function updateStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            if (isError) {
+                statusEl.classList.add('error');
+            } else {
+                statusEl.classList.remove('error');
+            }
+        }
+
+        function showMonitoring(show) {
+            const monitoring = document.getElementById('monitoring');
+            monitoring.style.display = show ? 'block' : 'none';
+            if (show) {
+                monitoring.classList.add('active');
+            } else {
+                monitoring.classList.remove('active');
+            }
+        }
+
+        async function simulateMetrics(duration, shouldFail = false) {
+            const metrics = ['metricCpu', 'metricMemory', 'metricError', 'metricLatency'];
+            const values = {
+                metricCpu: () => `${(Math.random() * 20 + 40).toFixed(1)}%`,
+                metricMemory: () => `${(Math.random() * 15 + 50).toFixed(1)}%`,
+                metricError: () => shouldFail ? `${(Math.random() * 5 + 10).toFixed(2)}%` : `${(Math.random() * 0.5).toFixed(2)}%`,
+                metricLatency: () => shouldFail ? `${(Math.random() * 500 + 500).toFixed(0)}ms` : `${(Math.random() * 50 + 100).toFixed(0)}ms`
+            };
+            
+            const startTime = Date.now();
+            while (Date.now() - startTime < duration) {
+                await waitWhilePaused();
+                metrics.forEach(metric => {
+                    const el = document.getElementById(metric);
+                    el.textContent = values[metric]();
+                    if (shouldFail && (metric === 'metricError' || metric === 'metricLatency')) {
+                        el.classList.add('critical');
+                    } else {
+                        el.classList.remove('critical');
+                    }
+                });
+                await sleep(500);
+            }
+            
+            return shouldFail;
+        }
+
+        function resetDeployment() {
+            isRunning = false;
+            isPaused = false;
+            shouldError = false;
+            const canaryContainer = document.getElementById('tasksContainer');
+            const oldContainer = document.getElementById('oldTasks');
+            canaryContainer.innerHTML = '';
+            oldContainer.innerHTML = '';
+            
+            // Create initial old tasks in production environment
+            for (let i = 1; i <= totalTasks; i++) {
+                const task = createTask(i, 'old', 25);
+                oldContainer.appendChild(task);
+                setTimeout(() => task.classList.add('active'), 50 * i);
+            }
+            
+            updateTrafficBar(100, 0, 0);
+            showMonitoring(false);
+            updateStatus('Click "Start Deployment" to begin');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('pauseBtn').textContent = 'Pause';
+            document.getElementById('pauseBtn').classList.remove('pause');
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function rollbackCanary() {
+            updateStatus('🔄 Rolling back canary deployment...');
+            const container = document.getElementById('tasksContainer');
+            
+            // Remove canary and new tasks
+            const canaryTask = document.getElementById('task-canary-1');
+            if (canaryTask) {
+                canaryTask.classList.add('removed');
+                await sleep(300);
+            }
+            
+            const newTasks = container.querySelectorAll('.task.new');
+            for (let task of newTasks) {
+                task.classList.add('removed');
+                await sleep(200);
+            }
+            
+            await sleep(500);
+            
+            if (canaryTask) canaryTask.remove();
+            newTasks.forEach(task => task.remove());
+            
+            // Restore old tasks to 100%
+            showMonitoring(false);
+            updateTrafficBar(100, 0, 0);
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) {
+                    oldTask.classList.remove('error', 'fading');
+                    oldTask.classList.add('active');
+                }
+                updateTaskTraffic(`task-old-${i}`, 25);
+            }
+            
+            updateStatus('✓ Rollback completed. Only 10% of users were affected. All 3 old tasks restored to original state.');
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function rollbackCanaryWithNew(newTaskCount) {
+            updateStatus(`🔄 Rolling back deployment... (Only 10% of users were affected - Canary caught the issue!)`);
+            const container = document.getElementById('tasksContainer');
+            
+            // Shift traffic back to old version
+            const currentCanary = 10;
+            const currentNew = newTaskCount * 20;
+            const currentOld = 100 - currentCanary - currentNew;
+            
+            for (let i = currentNew; i >= 0; i -= 10) {
+                updateTrafficBar(100 - currentCanary - i, currentCanary, i);
+                await sleep(100);
+            }
+            
+            updateTrafficBar(100, 0, 0);
+            
+            // Remove canary and new tasks
+            const canaryTask = document.getElementById('task-canary-1');
+            if (canaryTask) {
+                canaryTask.classList.add('removed');
+                await sleep(200);
+            }
+            
+            for (let i = 1; i <= newTaskCount; i++) {
+                const newTask = document.getElementById(`task-new-${i}`);
+                if (newTask) {
+                    newTask.classList.add('removed');
+                    await sleep(200);
+                }
+            }
+            
+            await sleep(500);
+            
+            if (canaryTask) canaryTask.remove();
+            for (let i = 1; i <= newTaskCount; i++) {
+                const newTask = document.getElementById(`task-new-${i}`);
+                if (newTask) newTask.remove();
+            }
+            
+            // Restore old tasks to 100%
+            showMonitoring(false);
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) {
+                    oldTask.classList.remove('error', 'fading');
+                    oldTask.classList.add('active');
+                }
+                updateTaskTraffic(`task-old-${i}`, 25);
+            }
+            
+            updateStatus(`✓ Rollback completed. Only 10% of users were affected. All 3 old tasks restored to original state.`);
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function startDeployment() {
+            if (isRunning) return;
+            isRunning = true;
+            isPaused = false;
+            shouldError = false;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('errorBtn').disabled = false;
+            
+            const container = document.getElementById('tasksContainer');
+            
+            // Phase 1: Deploy canary (10% traffic)
+            await waitWhilePaused();
+            updateStatus('Phase 1/2: Deploying canary - shifting 10% traffic to new version...');
+            
+            // Deploy new tasks for canary
+            const canaryTask = createTask(1, 'canary', 0);
+            container.appendChild(canaryTask);
+            await sleep(500);
+            canaryTask.classList.add('active');
+            await sleep(500);
+            
+            // Check for error during canary deployment
+            if (shouldError) {
+                updateStatus('❌ Canary deployment failed!', true);
+                canaryTask.classList.add('error');
+                shouldError = false;
+                await sleep(1500);
+                await rollbackCanary();
+                return;
+            }
+            
+            // Shift 10% traffic to canary
+            updateTrafficBar(90, 10, 0);
+            updateTaskTraffic('task-canary-1', 10);
+            for (let i = 1; i <= totalTasks; i++) {
+                updateTaskTraffic(`task-old-${i}`, 22.5);
+            }
+            
+            await sleep(1000);
+            
+            // Monitor canary
+            await waitWhilePaused();
+            updateStatus('Phase 1/2: Monitoring canary (10% traffic) for 5 seconds...');
+            showMonitoring(true);
+            
+            // Check for error before monitoring
+            if (shouldError) {
+                updateStatus('❌ Canary failed! High error rate detected!', true);
+                canaryTask.classList.add('error');
+                shouldError = false;
+                await sleep(1500);
+                showMonitoring(false);
+                await rollbackCanary();
+                return;
+            }
+            
+            const hasFailed = await simulateMetrics(5000, shouldError);
+            
+            if (hasFailed) {
+                updateStatus('❌ Canary failed! High error rate and latency detected!', true);
+                canaryTask.classList.add('error');
+                shouldError = false;
+                await sleep(1500);
+                showMonitoring(false);
+                await rollbackCanary();
+                return;
+            }
+            
+            updateStatus('Phase 1/2: ✓ Canary metrics healthy! Proceeding to full deployment...');
+            await sleep(1000);
+            showMonitoring(false);
+            
+            // Phase 2: Complete deployment (100%)
+            await waitWhilePaused();
+            
+            // Check for error before full deployment
+            if (shouldError) {
+                updateStatus('❌ Error detected before full deployment!', true);
+                canaryTask.classList.add('error');
+                shouldError = false;
+                await sleep(1500);
+                await rollbackCanary();
+                return;
+            }
+            
+            updateStatus('Phase 2/2: Shifting 100% traffic to new version...');
+            
+            // Deploy remaining new tasks (2 more, since we already have 1 canary)
+            for (let i = 2; i <= 3; i++) {
+                await waitWhilePaused();
+                
+                // Check for error during deployment
+                if (shouldError) {
+                    updateStatus(`❌ Error during full deployment at task ${i}!`, true);
+                    shouldError = false;
+                    await sleep(1500);
+                    await rollbackCanaryWithNew(i - 1);
+                    return;
+                }
+                
+                const newTask = createTask(i, 'new', 0);
+                container.appendChild(newTask);
+                await sleep(300);
+                newTask.classList.add('active');
+                await sleep(200);
+            }
+            
+            await sleep(500);
+            
+            // Shift 100% traffic to new version
+            updateStatus('Phase 2/2: Shifting traffic to 100% new version...');
+            for (let i = 10; i <= 100; i += 10) {
+                await waitWhilePaused();
+                updateTrafficBar(100 - i, Math.max(0, 10 - (i - 10)), Math.min(i, 100));
+                await sleep(200);
+            }
+            
+            // Convert canary to regular new task
+            canaryTask.classList.remove('canary');
+            canaryTask.classList.add('new');
+            const canaryDivs = canaryTask.querySelectorAll('div');
+            if (canaryDivs[0]) canaryDivs[0].textContent = 'New';
+            
+            updateTrafficBar(0, 0, 100);
+            // Update traffic for canary (now converted to regular new task) and 2 new tasks
+            updateTaskTraffic('task-canary-1', 33.3);
+            for (let i = 2; i <= 3; i++) {
+                updateTaskTraffic(`task-new-${i}`, 33.3);
+            }
+            
+            // Remove old tasks
+            for (let i = 1; i <= totalTasks; i++) {
+                await waitWhilePaused();
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) {
+                    oldTask.classList.add('removed');
+                }
+                await sleep(150);
+            }
+            
+            await sleep(500);
+            
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) oldTask.remove();
+            }
+            
+            updateStatus('✓ Canary deployment completed successfully! All traffic on new version.');
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Initialize
+        resetDeployment();
+    </script>
+</body>
+</html>

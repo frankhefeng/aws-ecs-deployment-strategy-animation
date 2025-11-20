@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECS Rolling Deployment Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            background: #f5f5f5;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 1600px;
+            max-width: 95vw;
+            max-height: 98vh;
+            overflow-y: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 10px 0;
+            font-size: 1.8em;
+        }
+        .aws-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .aws-logo {
+            font-size: 1.5em;
+        }
+
+        .deployment-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .ecs-cluster {
+            background: #232F3E;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .ecs-service {
+            background: #FF9900;
+            color: white;
+            padding: 6px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+        .load-balancer {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 153, 0, 0.3);
+        }
+        .connection-line {
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .connection-line::before {
+            content: "";
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #ddd;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .connection-arrow {
+            font-size: 16px;
+            color: #666;
+        }
+        .connection-lines-container {
+            position: relative;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .environment {
+            transition: all 0.5s ease;
+        }
+        .env-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .tasks-container {
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+            min-height: 120px;
+        }
+        .task {
+            width: 85px;
+            height: 85px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.5s ease;
+            position: relative;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        .task::before {
+            content: "📦";
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .task.old {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .task.new {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            color: white;
+        }
+        .task.starting {
+            opacity: 0.5;
+            transform: scale(0.8);
+        }
+        .task.draining {
+            opacity: 0.3;
+            transform: scale(0.9);
+        }
+        .task.removed {
+            opacity: 0;
+            transform: scale(0);
+        }
+        .traffic-line {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            width: 2px;
+            height: 30px;
+            background: #4CAF50;
+            transform: translateX(-50%);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+            color: #1976d2;
+            min-height: 40px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button.pause {
+            background: #FF9800;
+        }
+        button.pause:hover {
+            background: #F57C00;
+        }
+        button.error {
+            background: #f44336;
+        }
+        button.error:hover {
+            background: #d32f2f;
+        }
+        .task.error {
+            background: #f44336;
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="https://github.com/frankhefeng/aws-ecs-deployment-strategy-animation" target="_blank" class="github-corner" aria-label="View source on GitHub">
+            <svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true">
+                <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+                <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+                <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+            </svg>
+        </a>
+        <style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+        
+        <div class="aws-header">
+            <span class="aws-logo">☁️</span>
+            <h1>AWS ECS Rolling Deployment</h1>
+        </div>
+
+        <div class="deployment-area">
+            <div class="ecs-cluster">🏢 ECS Cluster: production-cluster</div>
+            <div class="ecs-service">🔧 ECS Service: web-service</div>
+            <div class="load-balancer">
+                <div style="font-size: 14px; margin-bottom: 6px; white-space: nowrap;">⚖️ Application Load Balancer (Optional)</div>
+                <div style="font-size: 12px; padding: 5px 10px; background: rgba(255,255,255,0.3); border-radius: 5px; display: inline-block;">
+                    🌐 Listener → TG
+                </div>
+            </div>
+            <div class="connection-line">
+                <span class="connection-arrow">↓</span>
+            </div>
+            <div style="background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%); border: 3px solid #4CAF50; padding: 15px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; color: #2E7D32; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">
+                <div>🎯 Target Group</div>
+                <div style="font-size: 11px; margin-top: 5px; padding: 3px 8px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                    All Tasks (Rolling Update)
+                </div>
+            </div>
+            <div class="connection-lines-container">
+                <div class="connection-line-vertical" style="width: 4px; height: 100%; background: linear-gradient(180deg, #4CAF50 0%, #388E3C 100%);"></div>
+            </div>
+            <div class="environment" style="padding: 20px; border-radius: 10px; background: #E8F5E9; border: 3px solid #4CAF50;">
+                <div class="env-title" style="text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 15px;">Rolling Update Environment</div>
+                <div class="tasks-container" id="tasksContainer"></div>
+            </div>
+        </div>
+        <div class="status" id="status">Click "Start Deployment" to begin</div>
+        <div class="controls">
+            <button id="startBtn" onclick="startDeployment()">Start Deployment</button>
+            <button id="pauseBtn" onclick="togglePause()" disabled>Pause</button>
+            <button id="errorBtn" class="error" onclick="simulateError()" disabled>Simulate Error</button>
+            <button id="resetBtn" onclick="resetDeployment()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 0;
+        let isRunning = false;
+        let isPaused = false;
+        let shouldError = false;
+        const totalTasks = 3;
+
+        function createTask(id, type, hasTraffic = false) {
+            const task = document.createElement('div');
+            task.className = `task ${type}`;
+            task.id = `task-${id}`;
+            task.innerHTML = `
+                <div>${type === 'old' ? 'Old' : 'New'}</div>
+                <div>Task ${id}</div>
+                ${hasTraffic ? '<div class="traffic-line"></div>' : ''}
+            `;
+            return task;
+        }
+
+        function updateStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            if (isError) {
+                statusEl.classList.add('error');
+            } else {
+                statusEl.classList.remove('error');
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.classList.add('pause');
+                updateStatus('⏸ Deployment paused');
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.classList.remove('pause');
+                updateStatus('▶ Deployment resumed');
+            }
+        }
+
+        async function simulateError() {
+            if (!isRunning) return;
+            
+            shouldError = true;
+            document.getElementById('errorBtn').disabled = true;
+            updateStatus('⚠️ Error will be triggered at next health check...', true);
+        }
+
+        async function waitWhilePaused() {
+            while (isPaused) {
+                await sleep(100);
+            }
+        }
+
+        function resetDeployment() {
+            currentStep = 0;
+            isRunning = false;
+            isPaused = false;
+            shouldError = false;
+            const container = document.getElementById('tasksContainer');
+            container.innerHTML = '';
+            
+            // Create initial old tasks
+            for (let i = 1; i <= totalTasks; i++) {
+                container.appendChild(createTask(i, 'old', true));
+            }
+            
+            updateStatus('Click "Start Deployment" to begin');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('pauseBtn').textContent = 'Pause';
+            document.getElementById('pauseBtn').classList.remove('pause');
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function deployTask(taskNum) {
+            const container = document.getElementById('tasksContainer');
+            
+            // Step 1: Start new task
+            await waitWhilePaused();
+            updateStatus(`Step ${taskNum}/3: Starting new task ${taskNum}...`);
+            const newTask = createTask(taskNum + 10, 'new');
+            newTask.classList.add('starting');
+            container.appendChild(newTask);
+            await sleep(1000);
+            
+            // Check for error
+            if (shouldError) {
+                await waitWhilePaused();
+                updateStatus(`❌ Error: New task ${taskNum} health check failed!`, true);
+                newTask.classList.add('error');
+                await sleep(1500);
+                shouldError = false; // Reset flag
+                return false;
+            }
+            
+            // Step 2: Health check pass
+            await waitWhilePaused();
+            updateStatus(`Step ${taskNum}/3: New task ${taskNum} health check passed`);
+            newTask.classList.remove('starting');
+            const trafficLine = document.createElement('div');
+            trafficLine.className = 'traffic-line';
+            newTask.appendChild(trafficLine);
+            await sleep(1000);
+            
+            // Step 3: Drain old task
+            await waitWhilePaused();
+            updateStatus(`Step ${taskNum}/3: Draining old task ${taskNum}...`);
+            const oldTask = document.getElementById(`task-${taskNum}`);
+            oldTask.classList.add('draining');
+            const oldTraffic = oldTask.querySelector('.traffic-line');
+            if (oldTraffic) oldTraffic.remove();
+            await sleep(1000);
+            
+            // Step 4: Remove old task
+            await waitWhilePaused();
+            updateStatus(`Step ${taskNum}/3: Removing old task ${taskNum}`);
+            oldTask.classList.add('removed');
+            await sleep(500);
+            oldTask.remove();
+            await sleep(500);
+            
+            return true;
+        }
+
+        async function rollback(affectedPercent = 0) {
+            updateStatus('🔄 Rolling back deployment...');
+            const container = document.getElementById('tasksContainer');
+            
+            // Remove all new tasks
+            const newTasks = container.querySelectorAll('.task.new');
+            for (let task of newTasks) {
+                task.classList.add('removed');
+                await sleep(300);
+            }
+            
+            await sleep(500);
+            newTasks.forEach(task => task.remove());
+            
+            // Check which old tasks still exist
+            const existingOldTasks = container.querySelectorAll('.task.old');
+            const existingIds = Array.from(existingOldTasks).map(t => t.id);
+            
+            // Restore existing old tasks
+            for (let task of existingOldTasks) {
+                task.classList.remove('draining', 'removed', 'error');
+                // Remove existing traffic line if any
+                const existingTraffic = task.querySelector('.traffic-line');
+                if (existingTraffic) existingTraffic.remove();
+                // Add new traffic line
+                const trafficLine = document.createElement('div');
+                trafficLine.className = 'traffic-line';
+                task.appendChild(trafficLine);
+                await sleep(300);
+            }
+            
+            // Re-create any missing old tasks
+            for (let i = 1; i <= totalTasks; i++) {
+                if (!existingIds.includes(`task-${i}`)) {
+                    const oldTask = createTask(i, 'old', true);
+                    container.appendChild(oldTask);
+                    await sleep(300);
+                }
+            }
+            
+            if (affectedPercent > 0) {
+                updateStatus(`✓ Rollback completed. ${affectedPercent}% of users were affected. All 3 old tasks restored to original state.`);
+            } else {
+                updateStatus('✓ Rollback completed. All 3 old tasks restored to original state.');
+            }
+        }
+
+        async function startDeployment() {
+            if (isRunning) return;
+            isRunning = true;
+            isPaused = false;
+            shouldError = false;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('errorBtn').disabled = false;
+            
+            for (let i = 1; i <= totalTasks; i++) {
+                const success = await deployTask(i);
+                if (!success) {
+                    await sleep(1000);
+                    // Calculate affected users percentage
+                    // If task i failed, we have (i-1) new tasks and (totalTasks - (i-1)) old tasks
+                    const newTaskCount = i - 1;
+                    const affectedPercent = Math.round((newTaskCount / totalTasks) * 100);
+                    await rollback(affectedPercent);
+                    isRunning = false;
+                    document.getElementById('pauseBtn').disabled = true;
+                    document.getElementById('errorBtn').disabled = true;
+                    return;
+                }
+            }
+            
+            updateStatus('✓ Rolling deployment completed! All tasks updated.');
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Initialize
+        resetDeployment();
+    </script>
+</body>
+</html>

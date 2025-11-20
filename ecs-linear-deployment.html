@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECS Linear Deployment Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            background: #f5f5f5;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 1600px;
+            max-width: 95vw;
+            max-height: 98vh;
+            overflow-y: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 10px 0;
+            font-size: 1.8em;
+        }
+        .aws-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .aws-logo {
+            font-size: 1.5em;
+        }
+
+        .deployment-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .ecs-cluster {
+            background: #232F3E;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .ecs-service {
+            background: #FF9900;
+            color: white;
+            padding: 6px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .load-balancer {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 153, 0, 0.3);
+        }
+
+        .target-group-single {
+            background: linear-gradient(135deg, #E3F2FD 0%, #FFF3E0 100%);
+            border: 2px solid #2196F3;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+            color: #1976D2;
+        }
+        .connection-line {
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .connection-line::before {
+            content: "";
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #ddd;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .connection-arrow {
+            font-size: 16px;
+            color: #666;
+        }
+        .connection-lines-container {
+            position: relative;
+            height: 40px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .environment {
+            transition: all 0.5s ease;
+        }
+        .env-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .traffic-distribution {
+            display: flex;
+            height: 40px;
+            border-radius: 5px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .traffic-old {
+            background: #2196F3;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .traffic-new {
+            background: #FF9800;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .tasks-container {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            min-height: 120px;
+        }
+        .task {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            transition: all 0.5s ease;
+            position: relative;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        .task::before {
+            content: "📦";
+            font-size: 1.2em;
+        }
+        .task.old {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .task.new {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            color: white;
+        }
+        .task.starting {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        .task.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .task.fading {
+            opacity: 0.3;
+        }
+        .task.removed {
+            opacity: 0;
+            transform: scale(0);
+        }
+        .task-traffic {
+            font-size: 10px;
+            margin-top: 5px;
+            padding: 2px 5px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        .timeline {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .timeline-label {
+            font-weight: bold;
+            min-width: 80px;
+        }
+        .timeline-bar {
+            flex: 1;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .timeline-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #2196F3, #FF9800);
+            border-radius: 15px;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+            color: #1976d2;
+            min-height: 40px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button.pause {
+            background: #FF9800;
+        }
+        button.pause:hover {
+            background: #F57C00;
+        }
+        button.error {
+            background: #f44336;
+        }
+        button.error:hover {
+            background: #d32f2f;
+        }
+        .task.error {
+            background: #f44336 !important;
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="https://github.com/frankhefeng/aws-ecs-deployment-strategy-animation" target="_blank" class="github-corner" aria-label="View source on GitHub">
+            <svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true">
+                <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+                <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+                <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+            </svg>
+        </a>
+        <style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+        
+        <div class="aws-header">
+            <span class="aws-logo">☁️</span>
+            <h1>AWS ECS Linear Deployment</h1>
+        </div>
+
+        
+        <div class="deployment-area">
+            <div class="ecs-cluster">🏢 ECS Cluster: production-cluster</div>
+            <div class="ecs-service">🔧 ECS Service: web-service</div>
+            <div class="load-balancer">
+                <div style="font-size: 14px; margin-bottom: 6px; white-space: nowrap;">⚖️ Application Load Balancer</div>
+                <div style="font-size: 12px; padding: 5px 10px; background: rgba(255,255,255,0.3); border-radius: 5px; display: inline-block;">
+                    <span id="listenerInfo">🌐 Listener: TG1 100% | TG2 0%</span>
+                </div>
+            </div>
+            <div class="connection-line">
+                <span class="connection-arrow">↓</span>
+            </div>
+            <div style="display: flex; gap: 20px; justify-content: center; margin: 20px 0;">
+                <div style="flex: 1; background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%); border: 3px solid #2196F3; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; color: #1976D2;">
+                    <div>🎯 Target Group 1</div>
+                    <div style="font-size: 11px; margin-top: 5px; padding: 3px 8px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                        <span id="tg1Weight">Old Tasks: 100%</span>
+                    </div>
+                </div>
+                <div style="flex: 1; background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%); border: 3px solid #FF9800; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; color: #E65100;">
+                    <div>🎯 Target Group 2</div>
+                    <div style="font-size: 11px; margin-top: 5px; padding: 3px 8px; background: rgba(0,0,0,0.1); border-radius: 3px;">
+                        <span id="tg2Weight">New Tasks: 0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="connection-lines-container">
+                <div class="connection-line-vertical" id="tg1Connection" style="width: 4px; height: 100%; background: linear-gradient(180deg, #2196F3 0%, #1976D2 100%);"></div>
+                <div class="connection-line-vertical" id="tg2Connection" style="width: 4px; height: 100%; background: linear-gradient(180deg, #FF9800 0%, #F57C00 100%); opacity: 0.2;"></div>
+            </div>
+            <div class="environments" style="display: flex; gap: 40px; justify-content: center;">
+                <div class="environment" id="oldEnv" style="flex: 1; padding: 20px; border-radius: 10px; background: #E3F2FD; border: 3px solid #2196F3;">
+                    <div class="env-title">🔵 Old Environment</div>
+                    <div class="tasks-container" id="oldTasks">
+                        <!-- Old tasks will be here -->
+                    </div>
+                </div>
+                <div class="environment" id="newEnv" style="flex: 1; padding: 20px; border-radius: 10px; background: #FFF3E0; border: 3px solid #FF9800;">
+                    <div class="env-title">🟠 New Environment</div>
+                    <div class="tasks-container" id="newTasks">
+                        <!-- New tasks will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status" id="status">Click "Start Deployment" to begin</div>
+        <div class="controls">
+            <button id="startBtn" onclick="startDeployment()">Start Deployment</button>
+            <button id="pauseBtn" onclick="togglePause()" disabled>Pause</button>
+            <button id="errorBtn" class="error" onclick="simulateError()" disabled>Simulate Error</button>
+            <button id="resetBtn" onclick="resetDeployment()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let isPaused = false;
+        let shouldError = false;
+        const totalTasks = 3;
+        const incrementPercent = 10;
+        const intervalSeconds = 1;
+
+        function createTask(id, type, traffic = 0) {
+            const task = document.createElement('div');
+            task.className = `task ${type} starting`;
+            task.id = `task-${type}-${id}`;
+            task.innerHTML = `
+                <div>${type === 'old' ? 'Old' : 'New'}</div>
+                <div>Task ${id}</div>
+                <div class="task-traffic">${traffic}%</div>
+            `;
+            return task;
+        }
+
+        function updateTaskTraffic(taskId, traffic) {
+            const task = document.getElementById(taskId);
+            if (task) {
+                const trafficEl = task.querySelector('.task-traffic');
+                if (trafficEl) {
+                    trafficEl.textContent = `${traffic}%`;
+                }
+            }
+        }
+
+        function updateTrafficBar(oldPercent, newPercent) {
+            // Update Listener weight distribution between TGs
+            const listenerInfo = document.getElementById('listenerInfo');
+            const tg1Weight = document.getElementById('tg1Weight');
+            const tg2Weight = document.getElementById('tg2Weight');
+            const tg1Connection = document.getElementById('tg1Connection');
+            const tg2Connection = document.getElementById('tg2Connection');
+            
+            listenerInfo.textContent = `🌐 Listener: TG1 ${oldPercent}% | TG2 ${newPercent}%`;
+            tg1Weight.textContent = `Old Tasks: ${oldPercent}%`;
+            tg2Weight.textContent = `New Tasks: ${newPercent}%`;
+            
+            // Update connection line opacity based on traffic
+            tg1Connection.style.opacity = oldPercent > 0 ? (oldPercent / 100) : 0.2;
+            tg2Connection.style.opacity = newPercent > 0 ? (newPercent / 100) : 0.2;
+        }
+
+        function updateStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            if (isError) {
+                statusEl.classList.add('error');
+            } else {
+                statusEl.classList.remove('error');
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.classList.add('pause');
+                updateStatus('⏸ Deployment paused');
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.classList.remove('pause');
+                updateStatus('▶ Deployment resumed');
+            }
+        }
+
+        async function simulateError() {
+            if (!isRunning) return;
+            
+            shouldError = true;
+            document.getElementById('errorBtn').disabled = true;
+            updateStatus('⚠️ Error will be triggered at next traffic shift...', true);
+        }
+
+        async function waitWhilePaused() {
+            while (isPaused) {
+                await sleep(100);
+            }
+        }
+
+        function resetDeployment() {
+            isRunning = false;
+            isPaused = false;
+            shouldError = false;
+            const oldContainer = document.getElementById('oldTasks');
+            const newContainer = document.getElementById('newTasks');
+            oldContainer.innerHTML = '';
+            newContainer.innerHTML = '';
+            
+            // Create initial old tasks in old environment
+            for (let i = 1; i <= totalTasks; i++) {
+                const task = createTask(i, 'old', 25);
+                oldContainer.appendChild(task);
+                setTimeout(() => task.classList.add('active'), 50 * i);
+            }
+            
+            updateTrafficBar(100, 0);
+            updateStatus('Click "Start Deployment" to begin');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('pauseBtn').textContent = 'Pause';
+            document.getElementById('pauseBtn').classList.remove('pause');
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function rollback(currentNewPercent, newTaskCount) {
+            updateStatus('🔄 Rolling back deployment...');
+            const newContainer = document.getElementById('newTasks');
+            
+            // Shift traffic back to old version
+            for (let i = currentNewPercent; i >= 0; i -= 10) {
+                await waitWhilePaused();
+                updateTrafficBar(100 - i, i);
+                await sleep(200);
+            }
+            
+            // Remove new tasks
+            for (let i = 1; i <= newTaskCount; i++) {
+                const newTask = document.getElementById(`task-new-${i}`);
+                if (newTask) {
+                    newTask.classList.add('removed');
+                    await sleep(200);
+                }
+            }
+            
+            await sleep(500);
+            
+            for (let i = 1; i <= newTaskCount; i++) {
+                const newTask = document.getElementById(`task-new-${i}`);
+                if (newTask) newTask.remove();
+            }
+            
+            // Restore old tasks to full capacity
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) {
+                    oldTask.classList.remove('fading', 'error');
+                    oldTask.classList.add('active');
+                    updateTaskTraffic(`task-old-${i}`, 25);
+                }
+            }
+            
+            updateStatus(`✓ Rollback completed. ${currentNewPercent}% of users were affected. All 3 old tasks restored to original state.`);
+        }
+
+        async function startDeployment() {
+            if (isRunning) return;
+            isRunning = true;
+            isPaused = false;
+            shouldError = false;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('errorBtn').disabled = false;
+            
+            const newContainer = document.getElementById('newTasks');
+            let newPercent = 0;
+            let oldPercent = 100;
+            let newTaskCount = 0;
+            let step = 1;
+            
+            while (newPercent < 100) {
+                await waitWhilePaused();
+                
+                newPercent = Math.min(newPercent + incrementPercent, 100);
+                oldPercent = 100 - newPercent;
+                
+                // Check for error
+                if (shouldError) {
+                    updateStatus(`❌ Error detected at ${newPercent}% deployment! High error rate observed.`, true);
+                    const lastNewTask = document.getElementById(`task-new-${newTaskCount}`);
+                    if (lastNewTask) lastNewTask.classList.add('error');
+                    shouldError = false; // Reset flag
+                    await sleep(1500);
+                    
+                    await rollback(newPercent, newTaskCount);
+                    isRunning = false;
+                    document.getElementById('pauseBtn').disabled = true;
+                    document.getElementById('errorBtn').disabled = true;
+                    return;
+                }
+                
+                updateStatus(`Step ${step}/10: Shifting ${incrementPercent}% traffic to new version (Total: ${newPercent}%)`);
+                
+                // Add new task if needed
+                if (newPercent > newTaskCount * 25 && newTaskCount < totalTasks) {
+                    newTaskCount++;
+                    const newTask = createTask(newTaskCount, 'new', 0);
+                    newContainer.appendChild(newTask);
+                    await sleep(300);
+                    newTask.classList.add('active');
+                    await sleep(200);
+                }
+                
+                // Update traffic distribution
+                updateTrafficBar(oldPercent, newPercent);
+                
+                // Update individual task traffic
+                const newTasksPerPercent = newPercent / newTaskCount;
+                for (let i = 1; i <= newTaskCount; i++) {
+                    updateTaskTraffic(`task-new-${i}`, Math.round(newTasksPerPercent));
+                }
+                
+                const oldTasksPerPercent = oldPercent / totalTasks;
+                for (let i = 1; i <= totalTasks; i++) {
+                    updateTaskTraffic(`task-old-${i}`, Math.round(oldTasksPerPercent));
+                }
+                
+                // Fade old tasks as traffic decreases
+                if (oldPercent < 50) {
+                    for (let i = 1; i <= totalTasks; i++) {
+                        const oldTask = document.getElementById(`task-old-${i}`);
+                        if (oldTask) oldTask.classList.add('fading');
+                    }
+                }
+                
+                await sleep(intervalSeconds * 1000);
+                step++;
+            }
+            
+            // Remove old tasks
+            await waitWhilePaused();
+            updateStatus('Removing old tasks...');
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) {
+                    oldTask.classList.add('removed');
+                }
+                await sleep(200);
+            }
+            
+            await sleep(500);
+            
+            // Clean up old tasks
+            for (let i = 1; i <= totalTasks; i++) {
+                const oldTask = document.getElementById(`task-old-${i}`);
+                if (oldTask) oldTask.remove();
+            }
+            
+            // Update new task traffic to 25% each
+            for (let i = 1; i <= totalTasks; i++) {
+                updateTaskTraffic(`task-new-${i}`, 25);
+            }
+            
+            updateStatus('✓ Linear deployment completed! All traffic shifted to new version.');
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Initialize
+        resetDeployment();
+    </script>
+</body>
+</html>

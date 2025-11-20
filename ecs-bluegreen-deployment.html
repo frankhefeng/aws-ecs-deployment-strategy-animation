@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECS Blue/Green Deployment Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            background: #f5f5f5;
+            box-sizing: border-box;
+        }
+        .container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 1600px;
+            max-width: 95vw;
+            max-height: 98vh;
+            overflow-y: auto;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin: 10px 0;
+            font-size: 1.8em;
+        }
+        .aws-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .aws-logo {
+            font-size: 1.5em;
+        }
+
+        .deployment-area {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .ecs-cluster {
+            background: #232F3E;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .ecs-service {
+            background: #FF9900;
+            color: white;
+            padding: 6px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 11px;
+        }
+        .load-balancer {
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(255, 153, 0, 0.3);
+        }
+
+        .alb-title {
+            font-size: 14px;
+            margin-bottom: 6px;
+            white-space: nowrap;
+        }
+        .alb-listeners {
+            display: flex;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .listener {
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 5px;
+            transition: all 0.5s ease;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .listener.production-listener {
+            background: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+        .target-groups {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin: 10px 0;
+            position: relative;
+        }
+        .target-group {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.5s ease;
+            border: 3px solid;
+            position: relative;
+        }
+        .target-group.blue {
+            background: #E3F2FD;
+            border-color: #2196F3;
+            color: #1976D2;
+        }
+        .target-group.green {
+            background: #E8F5E9;
+            border-color: #4CAF50;
+            color: #388E3C;
+        }
+        .target-group.production {
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+            border-width: 4px;
+        }
+        .target-group.test-only {
+            opacity: 0.7;
+            border-style: dashed;
+        }
+        .target-group::before {
+            content: "🎯 ";
+        }
+        .tg-label {
+            font-size: 10px;
+            margin-top: 4px;
+            padding: 2px 6px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .connection-line {
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .connection-line::before {
+            content: "";
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: #ddd;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .connection-arrow {
+            font-size: 16px;
+            color: #666;
+        }
+        .environments {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            position: relative;
+        }
+        .environment {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            transition: all 0.5s ease;
+            position: relative;
+        }
+        .environment.blue {
+            background: #E3F2FD;
+            border: 3px solid #2196F3;
+        }
+        .environment.green {
+            background: #E8F5E9;
+            border: 3px solid #4CAF50;
+        }
+        .environment.active {
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        .environment.standby {
+            opacity: 0.5;
+        }
+        
+        /* Connection lines from TG to Tasks */
+        .connection-lines-container {
+            position: relative;
+            height: 40px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .connection-line-vertical {
+            width: 4px;
+            height: 100%;
+            position: relative;
+            transition: all 0.5s ease;
+        }
+        .connection-line-vertical.blue-line {
+            background: linear-gradient(180deg, #2196F3 0%, #1976D2 100%);
+        }
+        .connection-line-vertical.green-line {
+            background: linear-gradient(180deg, #4CAF50 0%, #388E3C 100%);
+        }
+        .connection-line-vertical.inactive {
+            opacity: 0.2;
+            background: #ccc !important;
+        }
+        .connection-line-vertical.active {
+            opacity: 1;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .env-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .tasks-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 120px;
+        }
+        .task {
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.5s ease;
+            border: 2px solid rgba(255,255,255,0.3);
+            font-size: 13px;
+        }
+        .task::before {
+            content: "📦 ";
+        }
+        .task.blue {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .task.green {
+            background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+            color: white;
+        }
+        .task.starting {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        .task.ready {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .traffic-flow {
+            position: absolute;
+            width: 4px;
+            background: #4CAF50;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: all 0.8s ease;
+        }
+        .traffic-flow.to-blue {
+            height: 100px;
+            top: 100%;
+        }
+        .traffic-flow.to-green {
+            height: 100px;
+            top: 100%;
+            left: 75%;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+            color: #1976d2;
+            min-height: 40px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        button.pause {
+            background: #FF9800;
+        }
+        button.pause:hover {
+            background: #F57C00;
+        }
+        button.error {
+            background: #f44336;
+        }
+        button.error:hover {
+            background: #d32f2f;
+        }
+        .task.error {
+            background: #f44336 !important;
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .active-traffic {
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="https://github.com/frankhefeng/aws-ecs-deployment-strategy-animation" target="_blank" class="github-corner" aria-label="View source on GitHub">
+            <svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true">
+                <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+                <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+                <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+            </svg>
+        </a>
+        <style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
+        
+        <div class="aws-header">
+            <span class="aws-logo">☁️</span>
+            <h1>AWS ECS Blue/Green Deployment</h1>
+        </div>
+
+        <div class="deployment-area">
+            <div class="ecs-cluster">🏢 ECS Cluster: production-cluster</div>
+            <div class="ecs-service">🔧 ECS Service: web-service</div>
+            <div class="load-balancer">
+                <div class="alb-title">⚖️ Application Load Balancer</div>
+                <div class="alb-listeners">
+                    <div class="listener production-listener active-listener" id="prodListener">🌐 Production Listener → TG1 (Blue)</div>
+                </div>
+            </div>
+            <div class="connection-line">
+                <span class="connection-arrow">↓</span>
+            </div>
+            <div class="target-groups">
+                <div class="target-group blue production" id="blueTG">
+                    <div>Target Group 1 (Blue)</div>
+                    <div class="tg-label" id="blueTGLabel">Production - 100% Traffic</div>
+                </div>
+                <div class="target-group green test-only" id="greenTG">
+                    <div>Target Group 2 (Green)</div>
+                    <div class="tg-label" id="greenTGLabel">Standby - 0% Traffic</div>
+                </div>
+            </div>
+            <div class="connection-lines-container">
+                <div class="connection-line-vertical blue-line active" id="blueConnection"></div>
+                <div class="connection-line-vertical green-line inactive" id="greenConnection"></div>
+            </div>
+            <div class="environments">
+                <div class="environment blue active" id="blueEnv">
+                    <div class="env-title">🔵 Blue Environment</div>
+                    <div class="tasks-container">
+                        <div class="task blue ready active-traffic">Blue Task 1</div>
+                        <div class="task blue ready active-traffic">Blue Task 2</div>
+                        <div class="task blue ready active-traffic">Blue Task 3</div>
+                    </div>
+                </div>
+                <div class="environment green" id="greenEnv">
+                    <div class="env-title">🟢 Green Environment</div>
+                    <div class="tasks-container" id="greenTasks">
+                        <!-- Green tasks will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="status" id="status">Click "Start Deployment" to begin</div>
+        <div class="controls">
+            <button id="startBtn" onclick="startDeployment()">Start Deployment</button>
+            <button id="pauseBtn" onclick="togglePause()" disabled>Pause</button>
+            <button id="errorBtn" class="error" onclick="simulateError()" disabled>Simulate Error</button>
+            <button id="resetBtn" onclick="resetDeployment()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let isPaused = false;
+        let shouldError = false;
+
+        function updateStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            if (isError) {
+                statusEl.classList.add('error');
+            } else {
+                statusEl.classList.remove('error');
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.textContent = 'Resume';
+                pauseBtn.classList.add('pause');
+                updateStatus('⏸ Deployment paused');
+            } else {
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.classList.remove('pause');
+                updateStatus('▶ Deployment resumed');
+            }
+        }
+
+        async function simulateError() {
+            if (!isRunning) return;
+            
+            shouldError = true;
+            document.getElementById('errorBtn').disabled = true;
+            updateStatus('⚠️ Error will be triggered at next checkpoint...', true);
+        }
+
+        async function waitWhilePaused() {
+            while (isPaused) {
+                await sleep(100);
+            }
+        }
+
+        async function rollbackGreen(tasks) {
+            updateStatus('🔄 Rolling back: Terminating Green environment...');
+            await sleep(1000);
+            
+            const greenTasks = document.getElementById('greenTasks');
+            const allTasks = greenTasks.querySelectorAll('.task');
+            
+            for (let task of allTasks) {
+                task.classList.add('removed');
+                await sleep(200);
+            }
+            
+            await sleep(500);
+            greenTasks.innerHTML = '';
+            
+            // Ensure blue environment is active
+            const blueEnv = document.getElementById('blueEnv');
+            const greenEnv = document.getElementById('greenEnv');
+            const greenTG = document.getElementById('greenTG');
+            
+            blueEnv.classList.add('active');
+            blueEnv.classList.remove('standby');
+            greenEnv.classList.remove('active');
+            greenEnv.style.border = '3px solid #4CAF50';
+            greenTG.style.border = '3px solid #4CAF50';
+            
+            updateTrafficIndicator(100, 0);
+            
+            updateStatus('✓ Rollback completed. Production Listener still points to TG1 (Blue). No users affected!');
+            isRunning = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        function updateTrafficIndicator(bluePercent, greenPercent) {
+            const blueTG = document.getElementById('blueTG');
+            const greenTG = document.getElementById('greenTG');
+            const blueTGLabel = document.getElementById('blueTGLabel');
+            const greenTGLabel = document.getElementById('greenTGLabel');
+            const prodListener = document.getElementById('prodListener');
+            const blueConnection = document.getElementById('blueConnection');
+            const greenConnection = document.getElementById('greenConnection');
+            
+            if (bluePercent === 100) {
+                // Production Listener points to Blue TG
+                blueTG.classList.add('production');
+                blueTG.classList.remove('test-only');
+                greenTG.classList.add('test-only');
+                greenTG.classList.remove('production');
+                blueTGLabel.textContent = 'Production - 100% Traffic';
+                greenTGLabel.textContent = 'Standby - 0% Traffic';
+                prodListener.textContent = '🌐 Production Listener → TG1 (Blue)';
+                
+                // Update connection lines
+                blueConnection.classList.add('active');
+                blueConnection.classList.remove('inactive');
+                greenConnection.classList.add('inactive');
+                greenConnection.classList.remove('active');
+            } else if (greenPercent === 100) {
+                // Production Listener points to Green TG
+                greenTG.classList.add('production');
+                greenTG.classList.remove('test-only');
+                blueTG.classList.add('test-only');
+                blueTG.classList.remove('production');
+                greenTGLabel.textContent = 'Production - 100% Traffic';
+                blueTGLabel.textContent = 'Standby - 0% Traffic';
+                prodListener.textContent = '🌐 Production Listener → TG2 (Green)';
+                
+                // Update connection lines
+                greenConnection.classList.add('active');
+                greenConnection.classList.remove('inactive');
+                blueConnection.classList.add('inactive');
+                blueConnection.classList.remove('active');
+            }
+        }
+
+        function resetDeployment() {
+            isRunning = false;
+            isPaused = false;
+            shouldError = false;
+            const greenTasks = document.getElementById('greenTasks');
+            greenTasks.innerHTML = '';
+            
+            const blueEnv = document.getElementById('blueEnv');
+            const greenEnv = document.getElementById('greenEnv');
+            
+            blueEnv.classList.add('active');
+            blueEnv.classList.remove('standby');
+            blueEnv.style.opacity = '1';
+            blueEnv.style.border = '3px solid #2196F3';
+            greenEnv.classList.remove('active');
+            greenEnv.classList.remove('standby');
+            greenEnv.style.border = '3px solid #4CAF50';
+            
+            const blueTasks = blueEnv.querySelectorAll('.task');
+            blueTasks.forEach(task => {
+                task.classList.add('active-traffic');
+                task.classList.remove('error');
+                task.classList.remove('removed');
+            });
+            
+            updateTrafficIndicator(100, 0);
+            updateStatus('Click "Start Deployment" to begin');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+            document.getElementById('pauseBtn').textContent = 'Pause';
+            document.getElementById('pauseBtn').classList.remove('pause');
+            document.getElementById('errorBtn').disabled = true;
+        }
+
+        async function startDeployment() {
+            if (isRunning) return;
+            isRunning = true;
+            isPaused = false;
+            shouldError = false;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            document.getElementById('errorBtn').disabled = false;
+            
+            const greenTasks = document.getElementById('greenTasks');
+            const blueEnv = document.getElementById('blueEnv');
+            const greenEnv = document.getElementById('greenEnv');
+            
+            // Step 1: Deploy green environment
+            await waitWhilePaused();
+            updateStatus('Step 1/5: Deploying Green environment...');
+            await sleep(1000);
+            
+            for (let i = 1; i <= 3; i++) {
+                await waitWhilePaused();
+                const task = document.createElement('div');
+                task.className = 'task green starting';
+                task.id = `green-task-${i}`;
+                task.textContent = `Green Task ${i}`;
+                greenTasks.appendChild(task);
+                await sleep(300);
+            }
+            
+            await sleep(500);
+            
+            // Step 2: Health checks
+            await waitWhilePaused();
+            updateStatus('Step 2/5: Running health checks on Green environment...');
+            const tasks = greenTasks.querySelectorAll('.task');
+            
+            // Check for error before starting health checks
+            if (shouldError) {
+                updateStatus('❌ Error: Green environment deployment failed!', true);
+                tasks[0].classList.add('error');
+                shouldError = false; // Reset flag
+                await sleep(1500);
+                
+                // Rollback - terminate green environment
+                await rollbackGreen(tasks);
+                return;
+            }
+            
+            for (let i = 0; i < tasks.length; i++) {
+                await waitWhilePaused();
+                
+                // Check for error during each health check
+                if (shouldError) {
+                    updateStatus(`❌ Error: Green Task ${i + 1} health check failed!`, true);
+                    tasks[i].classList.add('error');
+                    shouldError = false; // Reset flag
+                    await sleep(1500);
+                    
+                    // Rollback - terminate green environment
+                    await rollbackGreen(tasks);
+                    return;
+                }
+                
+                tasks[i].classList.remove('starting');
+                tasks[i].classList.add('ready');
+                await sleep(400);
+            }
+            
+            await sleep(1000);
+            
+            // Step 3: Testing
+            await waitWhilePaused();
+            updateStatus('Step 3/5: Testing Green environment via Target Group 2...');
+            greenEnv.style.border = '3px solid #FFC107';
+            const greenTG = document.getElementById('greenTG');
+            greenTG.style.border = '3px solid #FFC107';
+            await sleep(1000);
+            
+            // Check for error during testing
+            if (shouldError) {
+                greenEnv.style.border = '3px solid #f44336';
+                greenTG.style.border = '2px solid #4CAF50';
+                updateStatus('❌ Error: Green environment testing failed!', true);
+                shouldError = false;
+                await sleep(1500);
+                await rollbackGreen(tasks);
+                return;
+            }
+            
+            await sleep(1000);
+            greenEnv.style.border = '3px solid #4CAF50';
+            greenTG.style.border = '2px solid #4CAF50';
+            
+            // Step 4: Switch traffic
+            await waitWhilePaused();
+            
+            // Check for error before traffic switch
+            if (shouldError) {
+                updateStatus('❌ Error detected before traffic switch!', true);
+                shouldError = false;
+                await sleep(1500);
+                await rollbackGreen(tasks);
+                return;
+            }
+            
+            updateStatus('Step 4/5: CodeDeploy switching Production Listener from TG1 to TG2 (instant switch)...');
+            await sleep(1000);
+            
+            // Check for error before traffic switch
+            if (shouldError) {
+                updateStatus('❌ Error detected before traffic switch! Aborting...', true);
+                shouldError = false;
+                await sleep(1500);
+                await rollbackGreen(tasks);
+                return;
+            }
+            
+            // Instant traffic switch (Blue/Green characteristic - NOT gradual!)
+            updateStatus('⚡ INSTANT SWITCH: Production Listener rule changed from TG1 (Blue) → TG2 (Green). 100% traffic switched!');
+            updateTrafficIndicator(0, 100);
+            await sleep(800);
+            
+            const blueTasks = blueEnv.querySelectorAll('.task');
+            blueTasks.forEach(task => {
+                task.classList.remove('active-traffic');
+            });
+            
+            tasks.forEach(task => {
+                task.classList.add('active-traffic');
+            });
+            
+            blueEnv.classList.remove('active');
+            greenEnv.classList.add('active');
+            
+            await sleep(1000);
+            
+            // Step 5: Blue standby
+            await waitWhilePaused();
+            updateStatus('Step 5/5: Blue environment on standby (ready for rollback)');
+            blueEnv.classList.add('standby');
+            const blueTG = document.getElementById('blueTG');
+            blueTG.classList.add('standby');
+            await sleep(1500);
+            
+            // Check for error after deployment (simulates post-deployment issue)
+            if (shouldError) {
+                updateStatus('❌ Error detected in Green environment! Instant rollback to Blue...', true);
+                shouldError = false;
+                await sleep(1000);
+                
+                // Instant rollback to blue (Blue/Green advantage)
+                updateStatus('⚡ Instant rollback: Production Listener switched back to TG1 (Blue)...');
+                updateTrafficIndicator(100, 0);
+                await sleep(500);
+                
+                const blueTasks = blueEnv.querySelectorAll('.task');
+                blueTasks.forEach(task => {
+                    task.classList.add('active-traffic');
+                });
+                
+                tasks.forEach(task => {
+                    task.classList.remove('active-traffic');
+                });
+                
+                blueEnv.classList.add('active');
+                blueEnv.classList.remove('standby');
+                greenEnv.classList.remove('active');
+                
+                const blueTG = document.getElementById('blueTG');
+                blueTG.classList.remove('test-only');
+                
+                await sleep(500);
+                
+                // Terminate green
+                updateStatus('🔄 Terminating failed Green environment...');
+                for (let task of tasks) {
+                    task.classList.add('removed');
+                    await sleep(200);
+                }
+                
+                await sleep(500);
+                greenTasks.innerHTML = '';
+                
+                updateStatus('✓ Instant rollback completed! Blue environment restored. Brief impact to users.');
+                isRunning = false;
+                document.getElementById('pauseBtn').disabled = true;
+                document.getElementById('errorBtn').disabled = true;
+                return;
+            }
+            
+            updateStatus('✓ Blue/Green deployment completed! Green is now active, Blue is on standby for rapid rollback.');
+            document.getElementById('pauseBtn').disabled = true;
+            
+            // Keep error button enabled for post-deployment rollback testing
+            await sleep(2000);
+            updateStatus('💡 Blue environment on standby. Click "Simulate Error" to test instant rollback, or wait 5s to auto-terminate Blue...');
+            
+            // Wait for potential error simulation
+            const startWait = Date.now();
+            while (Date.now() - startWait < 5000) {
+                await sleep(100);
+                if (shouldError) {
+                    updateStatus('❌ Error detected in Green environment! Instant rollback to Blue...', true);
+                    shouldError = false;
+                    await sleep(1000);
+                    
+                    // Instant rollback to blue (Blue/Green advantage)
+                    updateStatus('⚡ Instant rollback: Production Listener switched back to TG1 (Blue)...');
+                    updateTrafficIndicator(100, 0);
+                    await sleep(500);
+                    
+                    const blueTasks = blueEnv.querySelectorAll('.task');
+                    blueTasks.forEach(task => {
+                        task.classList.add('active-traffic');
+                    });
+                    
+                    tasks.forEach(task => {
+                        task.classList.remove('active-traffic');
+                    });
+                    
+                    blueEnv.classList.add('active');
+                    blueEnv.classList.remove('standby');
+                    greenEnv.classList.remove('active');
+                    
+                    const blueTG = document.getElementById('blueTG');
+                    blueTG.classList.remove('test-only');
+                    blueTG.classList.remove('standby');
+                    
+                    await sleep(500);
+                    
+                    // Terminate green
+                    updateStatus('🔄 Terminating failed Green environment...');
+                    for (let task of tasks) {
+                        task.classList.add('removed');
+                        await sleep(200);
+                    }
+                    
+                    await sleep(500);
+                    greenTasks.innerHTML = '';
+                    
+                    updateStatus('✓ Instant rollback completed! Blue environment restored. This is the power of Blue/Green!');
+                    isRunning = false;
+                    document.getElementById('errorBtn').disabled = true;
+                    return;
+                }
+            }
+            
+            // Optional: Terminate Blue environment after successful deployment
+            updateStatus('Step 6/6: No errors detected. Terminating Blue environment to free cluster resources...');
+            isRunning = false;
+            document.getElementById('errorBtn').disabled = true;
+            await sleep(1000);
+            
+            const blueTasksToRemove = blueEnv.querySelectorAll('.task');
+            for (let task of blueTasksToRemove) {
+                task.classList.add('removed');
+                await sleep(200);
+            }
+            
+            await sleep(500);
+            blueEnv.style.opacity = '0.3';
+            
+            updateStatus('✓ Deployment complete! Green environment active. Blue environment terminated to free resources.');
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Initialize
+        resetDeployment();
+    </script>
+</body>
+</html>
